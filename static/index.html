@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vision AI — Image Processing</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet">
+    <style>
+:root {
+  --bg: #f5f4f0;
+  --white: #ffffff;
+  --surface: #fafaf8;
+  --border: #e8e6e0;
+  --border-strong: #d0cdc5;
+  --text: #1a1917;
+  --text-secondary: #6b6860;
+  --text-hint: #9e9b95;
+  --accent: #2563eb;
+  --accent-light: #eff6ff;
+  --accent-hover: #1d4ed8;
+  --success: #059669;
+  --success-light: #ecfdf5;
+  --error: #dc2626;
+  --error-light: #fef2f2;
+  --warning: #d97706;
+  --warning-light: #fffbeb;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Inter', sans-serif;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,0.1), 0 4px 8px rgba(0,0,0,0.06);
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ─── TOPBAR ─── */
+.topbar {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: var(--shadow-sm);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-icon {
+  width: 32px; height: 32px;
+  background: var(--accent);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: white;
+  font-size: 15px;
+}
+
+.brand-name {
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.3px;
+}
+
+.brand-sub {
+  font-size: 11px;
+  color: var(--text-hint);
+  font-family: var(--mono);
+  margin-left: 2px;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ops-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: var(--mono);
+  background: var(--bg);
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
+
+.health-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--white);
+  font-size: 12px;
+  font-family: var(--mono);
+  cursor: pointer;
+  transition: border-color 0.15s;
+  color: var(--text-secondary);
+}
+.health-pill:hover { border-color: var(--border-strong); }
+.health-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--text-hint);
+  transition: background 0.3s;
+  flex-shrink: 0;
+}
+.health-dot.ok { background: var(--success); box-shadow: 0 0 0 2px rgba(5,150,105,0.2); }
+.health-dot.err { background: var(--error); box-shadow: 0 0 0 2px rgba(220,38,38,0.2); }
+.health-dot.checking { background: var(--warning); animation: blink 1s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ─── LAYOUT ─── */
+.workspace {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  grid-template-rows: 1fr;
+  height: calc(100vh - 56px);
+  overflow: hidden;
+}
+
+/* ─── LEFT PANEL ─── */
+.left-panel {
+  background: var(--white);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.panel-section {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-hint);
+  margin-bottom: 12px;
+}
+
+/* Upload */
+.drop-zone {
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 28px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  background: var(--surface);
+  overflow: hidden;
+}
+.drop-zone:hover { border-color: var(--accent); background: var(--accent-light); }
+.drop-zone.drag { border-color: var(--accent); background: var(--accent-light); border-style: solid; }
+.drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.drop-icon { font-size: 28px; margin-bottom: 8px; }
+.drop-text { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+.drop-hint { font-size: 11px; color: var(--text-hint); font-family: var(--mono); }
+
+.file-preview {
+  display: none;
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #000;
+}
+.file-preview.show { display: block; }
+.file-preview img { width: 100%; max-height: 180px; object-fit: contain; display: block; }
+.file-meta {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+.meta-chip {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-secondary);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.file-preview-wrap {
+  position: relative;
+  margin-top: 12px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #000;
+  display: none;
+}
+.file-preview-wrap.show { display: block; }
+.file-preview-wrap img { width: 100%; max-height: 180px; object-fit: contain; display: block; }
+.remove-photo-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px; height: 28px;
+  background: rgba(0,0,0,0.6);
+  border: 1.5px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: all 0.2s;
+  backdrop-filter: blur(4px);
+  line-height: 1;
+}
+.file-preview-wrap:hover .remove-photo-btn { opacity: 1; }
+.remove-photo-btn:hover { background: rgba(220,38,38,0.8); border-color: rgba(255,255,255,0.6); transform: scale(1.1); }
+
+/* Command */
+.cmd-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cmd-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 11px 14px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  resize: none;
+  transition: border-color 0.15s;
+  line-height: 1.5;
+}
+.cmd-input:focus { border-color: var(--accent); background: var(--white); }
+.cmd-input::placeholder { color: var(--text-hint); }
+
+.run-btn {
+  width: 100%;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  padding: 11px 20px;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: all 0.15s;
+}
+.run-btn:hover:not(:disabled) { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37,99,235,0.3); }
+.run-btn:active:not(:disabled) { transform: none; }
+.run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Quick commands grid */
+.quick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 16px 24px;
+}
+
+.quick-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 10px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.quick-btn:hover { border-color: var(--accent); background: var(--accent-light); }
+.quick-btn:hover .qb-label { color: var(--accent); }
+.qb-icon { font-size: 16px; }
+.qb-label { font-size: 11px; font-weight: 500; color: var(--text); }
+.qb-desc { font-size: 10px; color: var(--text-hint); }
+
+/* History log */
+.history-panel {
+  border-top: 1px solid var(--border);
+  padding: 12px 24px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+}
+.history-item:last-child { border-bottom: none; }
+.hi-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
+.hi-dot.err { background: var(--error); }
+.hi-op { font-weight: 500; color: var(--text); flex: 1; }
+.hi-time { color: var(--text-hint); font-family: var(--mono); }
+
+/* ─── RIGHT PANEL ─── */
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* Toolbar */
+.view-toolbar {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.toolbar-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-hint);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-right: 4px;
+}
+
+.view-toggle {
+  display: flex;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 2px;
+  gap: 2px;
+}
+.vt-btn {
+  padding: 4px 12px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.vt-btn.active { background: var(--white); color: var(--text); box-shadow: var(--shadow-sm); }
+
+.toolbar-sep { width: 1px; height: 20px; background: var(--border); }
+
+.zoom-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text-secondary);
+}
+.zoom-btn {
+  width: 24px; height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--white);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+  color: var(--text);
+  transition: all 0.15s;
+}
+.zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.download-btn-top {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--success-light);
+  border: 1px solid rgba(5,150,105,0.3);
+  border-radius: 7px;
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+.download-btn-top:hover { background: var(--success); color: white; }
+.download-btn-top.hidden { display: none; }
+
+/* Canvas area */
+.canvas-area {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  position: relative;
+}
+
+/* Split view */
+.split-view {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  width: 100%;
+  height: 100%;
+}
+.split-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.pane-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-hint);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  text-align: center;
+}
+.pane-img-wrap {
+  flex: 1;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  box-shadow: var(--shadow-sm);
+}
+.pane-img-wrap img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+
+/* Single view */
+.single-img-wrap {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  max-height: 100%;
+}
+.single-img-wrap img { max-width: min(700px, 100%); max-height: 480px; object-fit: contain; display: block; }
+
+/* Empty state */
+.empty-canvas {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-hint);
+  text-align: center;
+}
+.empty-icon { font-size: 52px; opacity: 0.25; }
+.empty-title { font-size: 15px; font-weight: 500; color: var(--text-secondary); }
+.empty-sub { font-size: 12px; }
+
+/* ─── INFO SIDEBAR ─── */
+.info-bar {
+  background: var(--white);
+  border-top: 1px solid var(--border);
+  padding: 14px 24px;
+  display: flex;
+  gap: 32px;
+  align-items: center;
+  flex-shrink: 0;
+  box-shadow: 0 -1px 0 var(--border);
+}
+
+.info-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.info-stat-label { font-size: 10px; color: var(--text-hint); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.5px; }
+.info-stat-value { font-size: 13px; font-weight: 500; color: var(--text); font-family: var(--mono); }
+.info-stat-value.accent { color: var(--accent); }
+.info-stat-value.success { color: var(--success); }
+
+.json-badge {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text-secondary);
+  cursor: pointer;
+  max-width: 320px;
+  overflow: hidden;
+}
+.json-badge:hover { border-color: var(--accent); }
+.json-op { color: var(--accent); font-weight: 500; margin-right: 4px; }
+.json-key { color: var(--text-hint); }
+.json-val { color: var(--success); }
+
+/* ─── PROCESSING OVERLAY ─── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(245,244,240,0.85);
+  backdrop-filter: blur(4px);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.overlay.show { opacity: 1; pointer-events: all; }
+
+.processing-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 32px 40px;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+  min-width: 280px;
+}
+
+.spinner-ring {
+  width: 48px; height: 48px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.proc-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.proc-step { font-size: 12px; color: var(--text-secondary); font-family: var(--mono); }
+.proc-step span { color: var(--accent); }
+
+/* ─── TOAST ─── */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 999;
+  transform: translateY(12px);
+  opacity: 0;
+  transition: all 0.25s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: var(--shadow-md);
+  max-width: 340px;
+}
+.toast.show { opacity: 1; transform: none; }
+.toast.ok { background: var(--success-light); border: 1px solid rgba(5,150,105,0.3); color: var(--success); }
+.toast.err { background: var(--error-light); border: 1px solid rgba(220,38,38,0.3); color: var(--error); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+</style>
+  </head>
+  <body>
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-icon">👁</div>
+        <div>
+          <span class="brand-name">Vision AI</span>
+          <span class="brand-sub">· Image Processing</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span class="ops-count" id="opsCount">19 операций</span>
+        <div class="health-pill" onclick="checkHealth()"
+          title="Нажмите для проверки">
+          <div class="health-dot checking" id="hDot"></div>
+          <span id="hText">Проверка LM Studio...</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- WORKSPACE -->
+    <div class="workspace">
+
+      <!-- LEFT PANEL -->
+      <aside class="left-panel">
+
+        <!-- Upload -->
+        <div class="panel-section">
+          <div class="section-label">Изображение</div>
+          <div class="drop-zone" id="dropZone">
+            <input type="file" id="fileInput" accept="image/*">
+            <div class="drop-icon">🖼</div>
+            <div class="drop-text">Перетащите или выберите</div>
+            <div class="drop-hint">PNG · JPG · BMP · TIFF · до 16MB</div>
+          </div>
+          <div class="file-preview-wrap" id="filePreview">
+            <img id="previewImg" alt="Preview">
+            <button class="remove-photo-btn" onclick="removePhoto()"
+              title="Удалить фото">✕</button>
+            <div class="file-meta" id="fileMeta"></div>
+          </div>
+        </div>
+
+        <!-- Command -->
+        <div class="panel-section">
+          <div class="section-label">Команда на естественном языке</div>
+          <div class="cmd-wrap">
+            <textarea class="cmd-input" id="cmdInput" rows="2"
+              placeholder="Опиши что сделать с изображением..."
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();runCommand()}"></textarea>
+            <button class="run-btn" id="runBtn" onclick="runCommand()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2.5"><polygon
+                  points="5 3 19 12 5 21 5 3" /></svg>
+              Запустить через ИИ
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick commands -->
+        <div class="section-label"
+          style="padding: 12px 24px 0; flex-shrink:0;">Быстрые команды</div>
+        <div class="quick-grid">
+          <button class="quick-btn"
+            onclick="setCmd('Поверни изображение на 90 градусов')">
+            <span class="qb-icon">🔄</span>
+            <span class="qb-label">Поворот 90°</span>
+            <span class="qb-desc">rotate</span>
+          </button>
+          <button class="quick-btn"
+            onclick="setCmd('Сделай изображение чёрно-белым')">
+            <span class="qb-icon">⬛</span>
+            <span class="qb-label">Grayscale</span>
+            <span class="qb-desc">grayscale</span>
+          </button>
+          <button class="quick-btn" onclick="setCmd('Выдели красный канал')">
+            <span class="qb-icon">🔴</span>
+            <span class="qb-label">Красный канал</span>
+            <span class="qb-desc">channel</span>
+          </button>
+          <button class="quick-btn"
+            onclick="setCmd('Обнаружь края на изображении')">
+            <span class="qb-icon">✏️</span>
+            <span class="qb-label">Края (Canny)</span>
+            <span class="qb-desc">edges</span>
+          </button>
+          <button class="quick-btn"
+            onclick="setCmd('Сделай карандашный эскиз')">
+            <span class="qb-icon">🖊</span>
+            <span class="qb-label">Эскиз</span>
+            <span class="qb-desc">sketch</span>
+          </button>
+          <button class="quick-btn" onclick="setCmd('Примени эффект сепии')">
+            <span class="qb-icon">🟫</span>
+            <span class="qb-label">Сепия</span>
+            <span class="qb-desc">sepia</span>
+          </button>
+          <button class="quick-btn"
+            onclick="setCmd('Пикселизируй изображение')">
+            <span class="qb-icon">🟦</span>
+            <span class="qb-label">Пикселизация</span>
+            <span class="qb-desc">pixelate</span>
+          </button>
+          <button class="quick-btn" onclick="setCmd('Примени эффект виньетки')">
+            <span class="qb-icon">🔲</span>
+            <span class="qb-label">Виньетка</span>
+            <span class="qb-desc">vignette</span>
+          </button>
+          <button class="quick-btn" onclick="setCmd('Инвертируй цвета')">
+            <span class="qb-icon">🔁</span>
+            <span class="qb-label">Инверсия</span>
+            <span class="qb-desc">invert</span>
+          </button>
+          <button class="quick-btn" onclick="setCmd('Примени тиснение emboss')">
+            <span class="qb-icon">💠</span>
+            <span class="qb-label">Тиснение</span>
+            <span class="qb-desc">emboss</span>
+          </button>
+          <button class="quick-btn" onclick="setCmd('Убери шум с изображения')">
+            <span class="qb-icon">✨</span>
+            <span class="qb-label">Шумоподавление</span>
+            <span class="qb-desc">denoise</span>
+          </button>
+          <button class="quick-btn" onclick="setCmd('Выровняй гистограмму')">
+            <span class="qb-icon">📊</span>
+            <span class="qb-label">Гистограмма</span>
+            <span class="qb-desc">histogram</span>
+          </button>
+          <button class="quick-btn"
+            onclick="setCmd('Размой изображение сильно')">
+            <span class="qb-icon">🌫</span>
+            <span class="qb-label">Размытие</span>
+            <span class="qb-desc">blur</span>
+          </button>
+          <button class="quick-btn"
+            onclick="setCmd('Зеркально отрази горизонтально')">
+            <span class="qb-icon">↔️</span>
+            <span class="qb-label">Отражение</span>
+            <span class="qb-desc">flip</span>
+          </button>
+          <button class="quick-btn"
+            onclick="setCmd('Повысь резкость изображения')">
+            <span class="qb-icon">🔍</span>
+            <span class="qb-label">Резкость</span>
+            <span class="qb-desc">sharpen</span>
+          </button>
+          <button class="quick-btn"
+            onclick="setCmd('Увеличь яркость изображения')">
+            <span class="qb-icon">☀️</span>
+            <span class="qb-label">Яркость</span>
+            <span class="qb-desc">brightness</span>
+          </button>
+          <button class="quick-btn"
+            onclick="setCmd('Измени размер до 640x480')">
+            <span class="qb-icon">📐</span>
+            <span class="qb-label">Масштаб</span>
+            <span class="qb-desc">resize</span>
+          </button>
+          <button class="quick-btn" onclick="setCmd('Выдели зелёный канал')">
+            <span class="qb-icon">🟢</span>
+            <span class="qb-label">Зелёный канал</span>
+            <span class="qb-desc">channel</span>
+          </button>
+          <button class="quick-btn"
+            onclick="setCmd('Увеличь контраст в 2 раза')">
+            <span class="qb-icon">◑</span>
+            <span class="qb-label">Контраст</span>
+            <span class="qb-desc">contrast</span>
+          </button>
+        </div>
+
+        <!-- History -->
+        <div class="history-panel" id="historyPanel" style="display:none;">
+          <div class="section-label">История операций</div>
+          <div id="historyList"></div>
+        </div>
+
+      </aside>
+
+      <!-- RIGHT PANEL -->
+      <main class="right-panel">
+
+        <!-- Toolbar -->
+        <div class="view-toolbar">
+          <span class="toolbar-label">Вид</span>
+          <div class="view-toggle">
+            <button class="vt-btn active" id="btnSingle"
+              onclick="setView('single')">Результат</button>
+            <button class="vt-btn" id="btnSplit"
+              onclick="setView('split')">Сравнение</button>
+          </div>
+          <div class="toolbar-sep"></div>
+          <div class="zoom-ctrl">
+            <button class="zoom-btn" onclick="adjustZoom(-10)">−</button>
+            <span id="zoomVal">100%</span>
+            <button class="zoom-btn" onclick="adjustZoom(10)">+</button>
+            <button class="zoom-btn" onclick="setZoom(100)"
+              title="Сбросить">⊙</button>
+          </div>
+          <a class="download-btn-top hidden" id="dlBtn" download="result.png">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2"><path
+                d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline
+                points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12"
+                y2="3" /></svg>
+            Скачать PNG
+          </a>
+        </div>
+
+        <!-- Canvas -->
+        <div class="canvas-area" id="canvasArea">
+          <div class="empty-canvas" id="emptyState">
+            <div class="empty-icon">🔮</div>
+            <div class="empty-title">Результат появится здесь</div>
+            <div class="empty-sub">Загрузите изображение и введите команду</div>
+          </div>
+
+          <!-- Single view -->
+          <div class="single-img-wrap" id="singleView" style="display:none;">
+            <img id="resultImg" alt="Result">
+          </div>
+
+          <!-- Split view -->
+          <div class="split-view" id="splitView" style="display:none;">
+            <div class="split-pane">
+              <div class="pane-label">Оригинал</div>
+              <div class="pane-img-wrap"><img id="origImg" alt="Original"></div>
+            </div>
+            <div class="split-pane">
+              <div class="pane-label">Результат</div>
+              <div class="pane-img-wrap"><img id="splitResultImg"
+                  alt="Result"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Info bar -->
+        <div class="info-bar" id="infoBar" style="display:none;">
+          <div class="info-stat">
+            <span class="info-stat-label">Статус</span>
+            <span class="info-stat-value success" id="iStatus">—</span>
+          </div>
+          <div class="info-stat">
+            <span class="info-stat-label">Операция</span>
+            <span class="info-stat-value accent" id="iOp">—</span>
+          </div>
+          <div class="info-stat">
+            <span class="info-stat-label">Исходный размер</span>
+            <span class="info-stat-value" id="iOrig">—</span>
+          </div>
+          <div class="info-stat">
+            <span class="info-stat-label">Результат</span>
+            <span class="info-stat-value" id="iResult">—</span>
+          </div>
+          <div class="info-stat">
+            <span class="info-stat-label">Время</span>
+            <span class="info-stat-value" id="iTime">—</span>
+          </div>
+          <div class="json-badge" id="jsonBadge" title="JSON-команда"
+            onclick="copyJson()">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2"><polyline
+                points="16 18 22 12 16 6" /><polyline
+                points="8 6 2 12 8 18" /></svg>
+            <span id="jsonDisplay">—</span>
+          </div>
+        </div>
+
+      </main>
+    </div>
+
+    <!-- Processing overlay -->
+    <div class="overlay" id="overlay">
+      <div class="processing-card">
+        <div class="spinner-ring"></div>
+        <div class="proc-title">Обработка изображения</div>
+        <div class="proc-step" id="procStep">Отправка в <span>LM
+            Studio</span>...</div>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+let selectedFile = null;
+let origDataUrl = null;
+let resultDataUrl = null;
+let currentView = 'single';
+let zoom = 100;
+let lastCmd = null;
+let history = [];
+
+// ─── Health check ───
+async function checkHealth() {
+  const dot = document.getElementById('hDot');
+  const txt = document.getElementById('hText');
+  dot.className = 'health-dot checking';
+  txt.textContent = 'Проверка...';
+  try {
+    const r = await fetch('/health', { signal: AbortSignal.timeout(5000) });
+    const d = await r.json();
+    if (d.status === 'ok') {
+      dot.className = 'health-dot ok';
+      txt.textContent = 'LM Studio · ready';
+    } else {
+      dot.className = 'health-dot err';
+      txt.textContent = 'LM Studio · недоступен';
+    }
+  } catch {
+    dot.className = 'health-dot err';
+    txt.textContent = 'Сервер не запущен';
+  }
+}
+
+// ─── Upload ───
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+fileInput.addEventListener('change', e => loadFile(e.target.files[0]));
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+
+function loadFile(file) {
+  if (!file?.type.startsWith('image/')) { toast('Только изображения', 'err'); return; }
+  selectedFile = file;
+  const url = URL.createObjectURL(file);
+  origDataUrl = url;
+
+  const img = new Image();
+  img.onload = () => {
+    document.getElementById('previewImg').src = url;
+    document.getElementById('fileMeta').innerHTML =
+      `<span class="meta-chip">${img.width}×${img.height}</span>
+       <span class="meta-chip">${(file.size/1024).toFixed(0)} KB</span>
+       <span class="meta-chip">${file.name.split('.').pop().toUpperCase()}</span>`;
+    document.getElementById('filePreview').classList.add('show');
+    document.getElementById('origImg').src = url;
+    document.getElementById('origImg').src = url;
+  };
+  img.src = url;
+}
+
+function removePhoto() {
+  selectedFile = null;
+  origDataUrl = null;
+  document.getElementById('previewImg').src = '';
+  document.getElementById('fileMeta').innerHTML = '';
+  document.getElementById('filePreview').classList.remove('show');
+  document.getElementById('fileInput').value = '';
+}
+
+
+// ─── Quick commands ───
+function setCmd(text) {
+  document.getElementById('cmdInput').value = text;
+  document.getElementById('cmdInput').focus();
+}
+
+// ─── View toggle ───
+function setView(v) {
+  currentView = v;
+  document.getElementById('btnSingle').classList.toggle('active', v === 'single');
+  document.getElementById('btnSplit').classList.toggle('active', v === 'split');
+  if (resultDataUrl) showResult_view();
+}
+
+function showResult_view() {
+  document.getElementById('emptyState').style.display = 'none';
+  if (currentView === 'single') {
+    document.getElementById('singleView').style.display = 'flex';
+    document.getElementById('splitView').style.display = 'none';
+    document.getElementById('resultImg').src = resultDataUrl;
+  } else {
+    document.getElementById('singleView').style.display = 'none';
+    document.getElementById('splitView').style.display = 'grid';
+    document.getElementById('splitResultImg').src = resultDataUrl;
+  }
+}
+
+// ─── Zoom ───
+function adjustZoom(d) { setZoom(zoom + d); }
+function setZoom(z) {
+  zoom = Math.max(25, Math.min(300, z));
+  document.getElementById('zoomVal').textContent = zoom + '%';
+  const imgs = ['resultImg', 'origImg', 'splitResultImg'];
+  imgs.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.transform = `scale(${zoom/100})`;
+  });
+}
+
+// ─── Main run ───
+async function runCommand() {
+  const cmd = document.getElementById('cmdInput').value.trim();
+  if (!selectedFile) { toast('Сначала загрузите изображение', 'err'); return; }
+  if (!cmd) { toast('Введите команду', 'err'); return; }
+
+  setLoading(true);
+  const t0 = Date.now();
+
+  const steps = [
+    'Отправка в <span>LM Studio</span>...',
+    'Модель парсит команду...',
+    'Генерация JSON...',
+    'Выполнение в <span>OpenCV</span>...',
+    'Кодирование результата...'
+  ];
+  let si = 0;
+  const stepEl = document.getElementById('procStep');
+  stepEl.innerHTML = steps[0];
+  const stepTimer = setInterval(() => {
+    si = (si + 1) % steps.length;
+    stepEl.innerHTML = steps[si];
+  }, 1200);
+
+  try {
+    const fd = new FormData();
+    fd.append('image', selectedFile);
+    fd.append('command', cmd);
+    const r = await fetch('/process', { method: 'POST', body: fd });
+    const data = await r.json();
+    clearInterval(stepTimer);
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(1) + 's';
+
+    if (data.success) {
+      resultDataUrl = `data:image/png;base64,${data.result_image}`;
+      lastCmd = data.parsed_command;
+      showResult_view();
+      updateInfoBar(data, elapsed);
+      addHistory(data.operation, true);
+      document.getElementById('dlBtn').href = resultDataUrl;
+      document.getElementById('dlBtn').classList.remove('hidden');
+      document.getElementById('infoBar').style.display = 'flex';
+      toast('✓ ' + data.operation, 'ok');
+    } else {
+      addHistory(cmd, false);
+      toast('Ошибка: ' + data.error, 'err');
+    }
+  } catch (e) {
+    clearInterval(stepTimer);
+    toast('Сервер недоступен', 'err');
+  } finally {
+    setLoading(false);
+  }
+}
+
+function updateInfoBar(data, elapsed) {
+  document.getElementById('iStatus').textContent = '✓ Выполнено';
+  document.getElementById('iOp').textContent = data.operation;
+  document.getElementById('iOrig').textContent = `${data.original_shape[1]}×${data.original_shape[0]}`;
+  document.getElementById('iResult').textContent = `${data.result_shape[1]}×${data.result_shape[0]}`;
+  document.getElementById('iTime').textContent = elapsed;
+  const j = data.parsed_command;
+  let jStr = `<span class="json-op">"${j.op}"</span>`;
+  Object.entries(j).filter(([k])=>k!=='op').forEach(([k,v]) => {
+    jStr += ` <span class="json-key">${k}:</span><span class="json-val">${JSON.stringify(v)}</span>`;
+  });
+  document.getElementById('jsonDisplay').innerHTML = jStr;
+}
+
+function copyJson() {
+  if (!lastCmd) return;
+  navigator.clipboard.writeText(JSON.stringify(lastCmd, null, 2));
+  toast('JSON скопирован', 'ok');
+}
+
+function addHistory(op, ok) {
+  const now = new Date();
+  const time = now.toTimeString().slice(0,5);
+  history.unshift({ op, ok, time });
+  if (history.length > 10) history.pop();
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  const panel = document.getElementById('historyPanel');
+  panel.style.display = history.length ? 'block' : 'none';
+  list.innerHTML = history.map(h => `
+    <div class="history-item">
+      <div class="hi-dot${h.ok ? '' : ' err'}"></div>
+      <div class="hi-op">${h.op}</div>
+      <div class="hi-time">${h.time}</div>
+    </div>
+  `).join('');
+}
+
+// ─── Loading ───
+function setLoading(on) {
+  document.getElementById('overlay').classList.toggle('show', on);
+  document.getElementById('runBtn').disabled = on;
+}
+
+// ─── Toast ───
+let toastTimer;
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = 'toast', 3500);
+}
+
+// ─── Init ───
+checkHealth();
+setInterval(checkHealth, 30000);
+</script>
+  </body>
+</html>

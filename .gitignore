@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+
+# Виртуальное окружение
+venv/
+.venv/
+env/
+
+# Загруженные изображения (если будешь сохранять на диск)
+uploads/
+outputs/
+*.tmp
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Flask
+instance/
+*.log
+
+# Модели LM Studio (на всякий случай)
+*.gguf
+*.bin

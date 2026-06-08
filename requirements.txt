@@ -1,0 +1,5 @@
+flask==3.0.3
+opencv-python==4.10.0.84
+numpy>=2.0.0
+requests==2.32.3
+Pillow==12.2.0
