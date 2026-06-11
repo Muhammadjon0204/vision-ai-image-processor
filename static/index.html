@@ -673,6 +673,67 @@ body {
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+/* ─── RT MODE ─── */
+.rt-btn {
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px;
+  background: var(--surface);
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.rt-btn:hover { border-color: #7c3aed; color: #7c3aed; background: #f5f3ff; }
+.rt-btn.active { border-style: solid; border-color: #7c3aed; color: #7c3aed; background: #f5f3ff; }
+
+.rt-stop-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--error-light);
+  border: 1px solid rgba(220,38,38,0.3);
+  border-radius: 7px;
+  color: var(--error);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.rt-stop-btn:hover { background: var(--error); color: white; }
+.rt-stop-btn.hidden { display: none; }
+
+.rt-status-chip {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #f5f3ff;
+  border: 1px solid rgba(124,58,237,0.3);
+  border-radius: 20px;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: #7c3aed;
+}
+.rt-status-chip.show { display: flex; }
+.rt-status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #7c3aed;
+  animation: blink 1s infinite;
+}
+
+.pane-img-wrap video {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
 </style>
   </head>
   <body>
@@ -721,6 +782,9 @@ body {
               кадр</button>
             <button class="camera-close-btn" onclick="stopCamera()">✕</button>
           </div>
+          <button class="rt-btn" id="rtBtn" style="display:none;" onclick="startRealtime()">
+            ⚡ Режим реального времени
+          </button>
           <canvas id="captureCanvas" style="display:none;"></canvas>
           <div class="file-preview-wrap" id="filePreview">
             <img id="previewImg" alt="Preview">
@@ -886,6 +950,11 @@ body {
             <button class="zoom-btn" onclick="setZoom(100)"
               title="Сбросить">⊙</button>
           </div>
+          <div class="rt-status-chip" id="rtStatusChip">
+            <div class="rt-status-dot"></div>
+            <span id="rtOpLabel">RT</span>
+          </div>
+          <button class="rt-stop-btn hidden" id="rtStopBtn" onclick="stopRealtime()">⏹ Стоп RT</button>
           <a class="download-btn-top hidden" id="dlBtn" download="result.png">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2"><path
@@ -919,6 +988,22 @@ body {
               <div class="pane-label">Результат</div>
               <div class="pane-img-wrap"><img id="splitResultImg"
                   alt="Result"></div>
+            </div>
+          </div>
+
+          <!-- RT Mode View -->
+          <div class="split-view" id="rtView" style="display:none;">
+            <div class="split-pane">
+              <div class="pane-label">Камера (прямая трансляция)</div>
+              <div class="pane-img-wrap">
+                <video id="rtVideo" autoplay playsinline muted></video>
+              </div>
+            </div>
+            <div class="split-pane">
+              <div class="pane-label">Результат · RT</div>
+              <div class="pane-img-wrap">
+                <img id="rtResult" alt="RT Result">
+              </div>
             </div>
           </div>
         </div>
@@ -979,6 +1064,10 @@ let currentView = 'single';
 let zoom = 100;
 let lastCmd = null;
 let history = [];
+let rtActive = false;
+let rtCommand = null;
+let rtInterval = null;
+let rtProcessing = false;
 
 // ─── Health check ───
 async function checkHealth() {
@@ -1056,6 +1145,7 @@ async function toggleCamera() {
       document.getElementById('cameraVideo').srcObject = cameraStream;
       wrap.style.display = 'block';
       document.getElementById('cameraBtn').textContent = '📷 Закрыть камеру';
+      document.getElementById('rtBtn').style.display = 'block';
     } catch (e) {
       toast('Камера недоступна или нет разрешения', 'err');
     }
@@ -1065,6 +1155,7 @@ async function toggleCamera() {
 }
 
 function stopCamera() {
+  if (rtActive) stopRealtime();
   if (cameraStream) {
     cameraStream.getTracks().forEach(t => t.stop());
     cameraStream = null;
@@ -1072,6 +1163,7 @@ function stopCamera() {
   document.getElementById('cameraVideo').srcObject = null;
   document.getElementById('cameraWrap').style.display = 'none';
   document.getElementById('cameraBtn').textContent = '📷 Открыть камеру';
+  document.getElementById('rtBtn').style.display = 'none';
 }
 
 function captureFrame() {
@@ -1238,6 +1330,109 @@ function toast(msg, type) {
   el.className = `toast show ${type}`;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.className = 'toast', 3500);
+}
+
+// ─── RT Mode ───
+async function startRealtime() {
+  if (!cameraStream) { toast('Сначала откройте камеру', 'err'); return; }
+  const cmd = document.getElementById('cmdInput').value.trim();
+  if (!cmd) { toast('Введите команду для RT режима', 'err'); return; }
+
+  setLoading(true);
+  document.getElementById('procStep').innerHTML = 'Парсинг команды через <span>LM Studio</span>...';
+
+  try {
+    const video = document.getElementById('cameraVideo');
+    const canvas = document.getElementById('captureCanvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.8));
+    const fd = new FormData();
+    fd.append('image', new File([blob], 'frame.jpg', { type: 'image/jpeg' }));
+    fd.append('command', cmd);
+
+    const r = await fetch('/process', { method: 'POST', body: fd });
+    const data = await r.json();
+
+    if (!data.success) { toast('Ошибка парсинга: ' + data.error, 'err'); return; }
+
+    rtCommand = data.parsed_command;
+
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('singleView').style.display = 'none';
+    document.getElementById('splitView').style.display = 'none';
+    document.getElementById('rtView').style.display = 'grid';
+    document.getElementById('rtVideo').srcObject = cameraStream;
+
+    const btn = document.getElementById('rtBtn');
+    btn.textContent = '⏹ Стоп RT';
+    btn.onclick = stopRealtime;
+    btn.classList.add('active');
+
+    document.getElementById('rtStatusChip').classList.add('show');
+    document.getElementById('rtOpLabel').textContent = data.operation || rtCommand.op;
+    document.getElementById('rtStopBtn').classList.remove('hidden');
+
+    rtActive = true;
+    rtInterval = setInterval(rtLoop, 150);
+    toast('⚡ ' + (data.operation || rtCommand.op), 'ok');
+
+  } catch (e) {
+    toast('Ошибка запуска RT режима', 'err');
+  } finally {
+    setLoading(false);
+  }
+}
+
+function stopRealtime() {
+  rtActive = false;
+  clearInterval(rtInterval);
+  rtInterval = null;
+  rtCommand = null;
+
+  document.getElementById('rtView').style.display = 'none';
+  document.getElementById('rtVideo').srcObject = null;
+  document.getElementById('rtStatusChip').classList.remove('show');
+  document.getElementById('rtStopBtn').classList.add('hidden');
+
+  const btn = document.getElementById('rtBtn');
+  btn.textContent = '⚡ Режим реального времени';
+  btn.onclick = startRealtime;
+  btn.classList.remove('active');
+
+  if (resultDataUrl) {
+    showResult_view();
+  } else {
+    document.getElementById('emptyState').style.display = 'flex';
+  }
+}
+
+async function rtLoop() {
+  if (!rtActive || rtProcessing) return;
+  const video = document.getElementById('cameraVideo');
+  if (!video.videoWidth) return;
+  rtProcessing = true;
+  try {
+    const canvas = document.getElementById('captureCanvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    const frameB64 = canvas.toDataURL('image/jpeg', 0.6);
+    const r = await fetch('/process_frame', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ frame: frameB64, command: rtCommand })
+    });
+    if (r.ok) {
+      const data = await r.json();
+      if (data.success) document.getElementById('rtResult').src = `data:image/jpeg;base64,${data.result}`;
+    }
+  } catch (_) {
+  } finally {
+    rtProcessing = false;
+  }
 }
 
 // ─── Init ───

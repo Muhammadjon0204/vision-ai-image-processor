@@ -138,6 +138,49 @@ def process_image():
         return jsonify({"success": False, "error": f"Внутренняя ошибка: {e}"}), 500
 
 
+@app.route("/process_frame", methods=["POST"])
+def process_frame():
+    """
+    Эндпоинт для режима реального времени.
+    Принимает JSON: {frame: base64_jpeg, command: dict}
+    Возвращает JSON: {success: bool, result: base64_jpeg}
+    """
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"success": False, "error": "JSON body обязателен"}), 400
+
+    frame_b64 = data.get("frame", "")
+    command = data.get("command")
+
+    if not frame_b64:
+        return jsonify({"success": False, "error": "frame не передан"}), 400
+    if not command or not isinstance(command, dict):
+        return jsonify({"success": False, "error": "command не передан"}), 400
+
+    try:
+        if "," in frame_b64:
+            frame_b64 = frame_b64.split(",", 1)[1]
+
+        img_bytes = base64.b64decode(frame_b64)
+        image = decode_image(img_bytes)
+
+        result_image, _ = apply_command(image, command)
+
+        # JPEG для скорости (быстрее PNG в 2-3 раза)
+        ok, buffer = cv2.imencode(".jpg", result_image, [cv2.IMWRITE_JPEG_QUALITY, 75])
+        if not ok:
+            return jsonify({"success": False, "error": "Ошибка кодирования"}), 500
+
+        result_b64 = base64.b64encode(buffer.tobytes()).decode("utf-8")
+        return jsonify({"success": True, "result": result_b64})
+
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 422
+    except Exception as e:
+        logger.error(f"RT frame error: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 if __name__ == "__main__":
     logger.info("=" * 50)
     logger.info("Image AI Controller запущен")
